@@ -48,7 +48,15 @@ def test_server_endpoints():
     assert ledger_row["accuracy"] >= 80.0
     print(f"PASS: /api/benchmark returned 4 ablations. Full Ledger Accuracy: {ledger_row['accuracy']}%")
 
-    # 5. Test static index.html
+    # 5. Test health endpoint
+    h_resp = client.get("/api/health")
+    assert h_resp.status_code == 200
+    h_data = h_resp.json()
+    assert h_data["status"] == "HEALTHY"
+    assert h_data["cached_filings"] >= 20
+    print(f"PASS: /api/health returned status: {h_data['status']}")
+
+    # 6. Test static index.html
     idx_resp = client.get("/")
     assert idx_resp.status_code == 200
     assert "LEDGER" in idx_resp.text

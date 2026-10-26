@@ -32,3 +32,7 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# SEC EDGAR cache
+.cache/
+

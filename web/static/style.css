@@ -154,6 +154,68 @@ body {
     min-width: 320px;
 }
 
+.live-ticker-wrap {
+    display: flex;
+    align-items: center;
+    background: var(--bg-page);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 2px 4px 2px 10px;
+    gap: 6px;
+    transition: border-color 0.15s ease;
+}
+
+.live-ticker-wrap:focus-within {
+    border-color: var(--border-focus);
+}
+
+.ticker-input {
+    background: transparent;
+    border: none;
+    color: var(--text-high);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    width: 135px;
+    outline: none;
+}
+
+.ticker-input::placeholder {
+    color: var(--text-low);
+    font-weight: 400;
+    text-transform: none;
+    font-family: var(--font-sans);
+}
+
+.btn-live-fetch {
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--bg-surface-elevated);
+    color: var(--text-mid);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 4px 8px;
+    font-size: 0.74rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.15s ease;
+}
+
+.btn-live-fetch:hover {
+    color: var(--text-high);
+    background: var(--bg-surface-active);
+    border-color: var(--border-focus);
+}
+
+.btn-live-fetch:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 .navbar-actions {
     display: flex;
     align-items: center;

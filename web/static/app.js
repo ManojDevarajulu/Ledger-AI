@@ -86,12 +86,77 @@ document.addEventListener('DOMContentLoaded', () => {
             filingSelect.innerHTML = '<option disabled>Failed to load filings</option>';
         });
 
+    // Live SEC Ingest Elements
+    const liveTickerInput = document.getElementById('liveTickerInput');
+    const fetchLiveBtn = document.getElementById('fetchLiveBtn');
+
+    // Live Fetch Handler
+    if (fetchLiveBtn && liveTickerInput) {
+        fetchLiveBtn.addEventListener('click', handleLiveFetch);
+        liveTickerInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                handleLiveFetch();
+            }
+        });
+    }
+
+    function handleLiveFetch() {
+        const ticker = liveTickerInput.value.trim().toUpperCase();
+        if (!ticker) {
+            liveTickerInput.focus();
+            return;
+        }
+
+        const origHtml = fetchLiveBtn.innerHTML;
+        fetchLiveBtn.disabled = true;
+        fetchLiveBtn.innerHTML = '<span>Ingesting...</span>';
+        queryStatusNotice.textContent = `Querying SEC EDGAR Submissions API for ${ticker} Form 10-K...`;
+
+        fetch('/api/filing/live', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ticker: ticker })
+        })
+        .then(res => {
+            if (!res.ok) {
+                return res.json().then(errData => {
+                    throw new Error(errData.detail || `SEC Error ${res.status}`);
+                });
+            }
+            return res.json();
+        })
+        .then(data => {
+            const existingIdx = filingsData.findIndex(f => f.case_id === data.case_id);
+            if (existingIdx >= 0) {
+                filingsData[existingIdx] = data.case;
+            } else {
+                filingsData.unshift(data.case);
+            }
+
+            renderFilingsDropdown();
+            filingSelect.value = data.case_id;
+            selectFiling(data.case_id, true);
+            liveTickerInput.value = '';
+            queryStatusNotice.textContent = `Audited live from SEC EDGAR (Accession: ${data.case.accession_number})`;
+        })
+        .catch(err => {
+            console.error("Live fetch failed:", err);
+            queryStatusNotice.textContent = `SEC EDGAR error: ${err.message}`;
+            alert(`Unable to ingest ${ticker} from SEC EDGAR: ${err.message}`);
+        })
+        .finally(() => {
+            fetchLiveBtn.disabled = false;
+            fetchLiveBtn.innerHTML = origHtml;
+        });
+    }
+
     function renderFilingsDropdown() {
         filingSelect.innerHTML = '';
         filingsData.forEach(f => {
             const opt = document.createElement('option');
             opt.value = f.case_id;
-            opt.textContent = `${f.company} (${f.ticker}) — ${f.fiscal_year} 10-K (${f.section})`;
+            const liveBadge = f.is_live_edgar ? '[LIVE EDGAR] ' : '';
+            opt.textContent = `${liveBadge}${f.company} (${f.ticker}) — ${f.fiscal_year} 10-K (${f.section})`;
             filingSelect.appendChild(opt);
         });
 

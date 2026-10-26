@@ -27,6 +27,14 @@
                         <option value="" disabled selected>Loading filings...</option>
                     </select>
                 </div>
+
+                <div class="live-ticker-wrap">
+                    <input type="text" id="liveTickerInput" class="ticker-input" placeholder="Live Ticker (e.g. TSLA)" maxlength="6">
+                    <button id="fetchLiveBtn" class="btn-live-fetch" type="button" title="Fetch live Form 10-K from SEC EDGAR">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        <span>Live EDGAR</span>
+                    </button>
+                </div>
             </div>
 
             <div class="navbar-actions">
