@@ -69,8 +69,8 @@ Evaluated across 20 curated SEC 10-K cases from **Patronus AI's FinanceBench** (
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/ledger-ai.git
-cd ledger-ai
+git clone https://github.com/ManojDevarajulu/Ledger-AI.git
+cd Ledger-AI
 
 # Install dependencies
 pip install -r requirements.txt
