@@ -23,6 +23,7 @@ ENV/
 # Secrets & Environment variables
 .env
 .env.*
+!.env.example
 *.log
 
 # Operating System & IDE files

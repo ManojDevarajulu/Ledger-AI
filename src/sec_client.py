@@ -26,12 +26,12 @@ class SECClient:
 
     def __init__(
         self,
-        user_agent: str = "LedgerAI/1.0 (compliance@ledgerai.local)",
+        user_agent: Optional[str] = None,
         cache_dir: Optional[Path] = None,
-        rate_limit_delay: float = 0.15
+        rate_limit_delay: Optional[float] = None
     ):
-        self.user_agent = user_agent
-        self.rate_limit_delay = rate_limit_delay
+        self.user_agent = user_agent or os.getenv("SEC_EDGAR_USER_AGENT", "LedgerAI/1.0 (compliance@ledgerai.local)")
+        self.rate_limit_delay = rate_limit_delay if rate_limit_delay is not None else float(os.getenv("SEC_RATE_LIMIT_DELAY", "0.15"))
         self.cache_dir = cache_dir or (Path(__file__).parent.parent / ".cache" / "edgar")
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         
