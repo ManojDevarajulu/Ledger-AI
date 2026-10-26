@@ -19,8 +19,10 @@ Standard RAG (Retrieval-Augmented Generation) architectures fail catastrophicall
 3. **Compulsive Guessing:** Generic systems attempt to answer queries even when critical data (such as non-disclosed segment ARR or unreleased forward-looking guidance) is absent from the filing.
 
 **Ledger AI** treats financial document intelligence as a deterministic systems problem:
+* **Live SEC EDGAR Ingestion:** Directly ingests Form 10-K filings over HTTPS via the SEC Submissions API, adhering strictly to SEC Fair Access guidelines (custom `User-Agent` and token-bucket rate limiting) with content-addressable SHA-256 disk caching.
 * **Context-Preserving Table Chunking:** Propagates full column hierarchies, units, and fiscal periods to every row chunk.
 * **Hybrid Search with RRF:** Fuses sparse lexical search (BM25 for exact tickers and line items) with dense embeddings via Reciprocal Rank Fusion.
+* **Neuro-Symbolic LLM Agent:** Formulates structured variable bindings and mathematical expressions, supporting OpenAI-compatible endpoints and deterministic offline execution.
 * **Deterministic AST Math Engine:** Bypasses LLM calculation entirely by parsing formulas and evaluating values with Python's native `decimal.Decimal` inside a sandboxed Abstract Syntax Tree.
 * **Calibrated Refusal Guard:** Enforces strict boundary checks that reject ungrounded, non-disclosed, or forward-looking queries.
 

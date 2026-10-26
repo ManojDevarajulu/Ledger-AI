@@ -10,6 +10,7 @@
 Ledger-AI/
 ├── ARCHITECTURE.md                  # System architecture & design specification
 ├── requirements.txt                 # Hardened, pinned dependencies
+├── .env.example                     # Environment template (SEC headers & LLM keys)
 ├── run.py                           # Application entrypoint & terminal launcher
 ├── Makefile                         # Test and evaluation targets
 ├── README.md                        # Documentation, benchmarks, and API usage
@@ -18,14 +19,16 @@ Ledger-AI/
 │   └── financebench_sample.jsonl    # Curated SEC 10-K benchmark cases (FinanceBench)
 ├── src/
 │   ├── __init__.py
+│   ├── sec_client.py                # Live SEC EDGAR client with fair-access rate limiting & disk cache
 │   ├── table_parser.py              # Table-aware hierarchy & footnote chunking engine
 │   ├── hybrid_retriever.py          # BM25 + Dense search with weighted RRF & reranking
+│   ├── llm_agent.py                 # Neuro-symbolic LLM agent with structured JSON reasoning
 │   ├── math_verifier.py             # AST-whitelisted decimal.Decimal execution engine
 │   ├── refusal_guard.py             # Calibrated refusal guard (temporal & non-disclosed boundaries)
 │   └── eval_runner.py               # 4-way ablation benchmark evaluation runner
 ├── web/
-│   ├── server.py                    # FastAPI service exposing query & benchmark endpoints
-│   └── static/                      # Dark-mode Financial Terminal UI
+│   ├── server.py                    # FastAPI service exposing query, live EDGAR, and health endpoints
+│   └── static/                      # Minimalist Financial Research Terminal UI
 │       ├── index.html
 │       ├── style.css
 │       └── app.js
@@ -33,6 +36,8 @@ Ledger-AI/
     ├── test_data_integrity.py       # Benchmark fixture validation
     ├── test_core_engine.py          # Unit tests for parser, retriever, and verifier
     ├── test_core_engine_expanded.py # Tests for CAGR, variable resolution, and prefiltering
+    ├── test_sec_client.py           # Unit tests for SEC EDGAR CIK resolution & table extraction
+    ├── test_llm_agent.py            # Unit tests for LLM agent structured synthesis & fallback
     └── test_server_api.py           # End-to-end FastAPI integration tests
 ```
 
