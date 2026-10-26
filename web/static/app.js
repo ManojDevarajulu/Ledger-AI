@@ -1,63 +1,97 @@
 document.addEventListener('DOMContentLoaded', () => {
     let filingsData = [];
-    let currentAblationMode = 'full';
     let selectedCase = null;
+    let currentAblationMode = 'full';
 
-    // Elements
+    // DOM Elements
     const filingSelect = document.getElementById('filingSelect');
+    const ablationSelect = document.getElementById('ablationSelect');
     const quickChips = document.getElementById('quickChips');
     const queryInput = document.getElementById('queryInput');
     const runQueryBtn = document.getElementById('runQueryBtn');
-    const ablationPills = document.querySelectorAll('#ablationPills .pill');
-    
+
+    // Tab Navigation Elements
+    const tabResearch = document.getElementById('tabResearch');
+    const tabBenchmark = document.getElementById('tabBenchmark');
+    const researchView = document.getElementById('researchView');
+    const benchmarkView = document.getElementById('benchmarkView');
+
+    // Analysis Result Elements
     const statusBadge = document.getElementById('statusBadge');
+    const queryStatusNotice = document.getElementById('queryStatusNotice');
     const heroMetricValue = document.getElementById('heroMetricValue');
     const synthesisText = document.getElementById('synthesisText');
     const traceFormula = document.getElementById('traceFormula');
     const citedCellsList = document.getElementById('citedCellsList');
     const retrievedChunkText = document.getElementById('retrievedChunkText');
-    
+
+    // SEC Table Elements
     const tableContainer = document.getElementById('tableContainer');
     const tableTitleTag = document.getElementById('tableTitleTag');
     const unitScaleTag = document.getElementById('unitScaleTag');
-    
+
+    // Benchmark Elements
     const benchmarkTableBody = document.getElementById('benchmarkTableBody');
     const runBenchmarkBtn = document.getElementById('runBenchmarkBtn');
 
-    // 1. Initialize Ablation Mode Pills
-    ablationPills.forEach(pill => {
-        pill.addEventListener('click', () => {
-            ablationPills.forEach(p => p.classList.remove('active'));
-            pill.classList.add('active');
-            currentAblationMode = pill.getAttribute('data-mode');
-            if (selectedCase) {
-                executeQuery();
-            }
-        });
+    // 1. Tab Switching Logic
+    tabResearch.addEventListener('click', () => {
+        tabResearch.classList.add('active');
+        tabResearch.setAttribute('aria-selected', 'true');
+        tabBenchmark.classList.remove('active');
+        tabBenchmark.setAttribute('aria-selected', 'false');
+
+        researchView.classList.remove('hidden');
+        benchmarkView.classList.add('hidden');
     });
 
-    // 2. Fetch Filings
+    tabBenchmark.addEventListener('click', () => {
+        tabBenchmark.classList.add('active');
+        tabBenchmark.setAttribute('aria-selected', 'true');
+        tabResearch.classList.remove('active');
+        tabResearch.setAttribute('aria-selected', 'false');
+
+        benchmarkView.classList.remove('hidden');
+        researchView.classList.add('hidden');
+
+        // Auto load benchmark if empty
+        if (benchmarkTableBody && benchmarkTableBody.children.length <= 1) {
+            fetchBenchmark();
+        }
+    });
+
+    // 2. Pipeline Mode Change
+    ablationSelect.addEventListener('change', (e) => {
+        currentAblationMode = e.target.value;
+        if (selectedCase) {
+            executeQuery();
+        }
+    });
+
+    // 3. Fetch Filings
     fetch('/api/filings')
         .then(res => res.json())
         .then(data => {
-            filingsData = data.filings;
+            filingsData = data.filings || [];
             renderFilingsDropdown();
             renderQuickChips();
-            
-            // Auto-select first filing
+
             if (filingsData.length > 0) {
                 filingSelect.value = filingsData[0].case_id;
                 selectFiling(filingsData[0].case_id);
             }
         })
-        .catch(err => console.error("Error loading filings:", err));
+        .catch(err => {
+            console.error("Failed to load filings:", err);
+            filingSelect.innerHTML = '<option disabled>Failed to load filings</option>';
+        });
 
     function renderFilingsDropdown() {
         filingSelect.innerHTML = '';
         filingsData.forEach(f => {
             const opt = document.createElement('option');
             opt.value = f.case_id;
-            opt.textContent = `${f.company} (${f.ticker}) — ${f.fiscal_year} 10-K [${f.table_title}]`;
+            opt.textContent = `${f.company} (${f.ticker}) — ${f.fiscal_year} 10-K (${f.section})`;
             filingSelect.appendChild(opt);
         });
 
@@ -68,16 +102,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderQuickChips() {
         quickChips.innerHTML = '';
-        
-        // Select 4 high-signal sample benchmarks
         const sampleIds = ['fb_msft_01', 'fb_nvda_01', 'fb_aapl_02', 'fb_refusal_01', 'fb_amzn_02'];
         const samples = filingsData.filter(f => sampleIds.includes(f.case_id));
 
         samples.forEach(s => {
             const chip = document.createElement('button');
-            chip.className = 'chip-btn';
-            const icon = s.is_refusal_case ? '⚠️' : '⚡';
-            chip.textContent = `${icon} ${s.ticker}: ${s.table_title.split(' ')[0]}`;
+            chip.className = 'pill-chip';
+            chip.type = 'button';
+            chip.textContent = s.is_refusal_case ? `${s.ticker}: Copilot Guidance` : `${s.ticker}: ${s.table_title.split(' ')[0]} Growth`;
             chip.addEventListener('click', () => {
                 filingSelect.value = s.case_id;
                 selectFiling(s.case_id, true);
@@ -86,23 +118,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function selectFiling(caseId, autoExecute = false) {
+    function selectFiling(caseId, autoExecute = true) {
         selectedCase = filingsData.find(f => f.case_id === caseId);
         if (!selectedCase) return;
 
         queryInput.value = selectedCase.question;
         tableTitleTag.textContent = selectedCase.table_title;
 
-        if (autoExecute || selectedCase) {
+        if (autoExecute) {
             executeQuery();
         }
     }
 
-    // 3. Execute Query
-    runQueryBtn.addEventListener('click', () => {
-        executeQuery();
-    });
-
+    // 4. Query Execution
+    runQueryBtn.addEventListener('click', executeQuery);
     queryInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             executeQuery();
@@ -114,6 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         runQueryBtn.disabled = true;
         heroMetricValue.textContent = 'Verifying...';
+        queryStatusNotice.textContent = 'Retrieving table context and validating arithmetic AST...';
 
         const payload = {
             case_id: selectedCase.case_id,
@@ -131,9 +161,11 @@ document.addEventListener('DOMContentLoaded', () => {
             renderQueryResult(data);
         })
         .catch(err => {
-            console.error("Query error:", err);
+            console.error("Query execution error:", err);
             heroMetricValue.textContent = 'Error';
-            synthesisText.textContent = 'Failed to execute query.';
+            synthesisText.textContent = 'Unable to complete query execution.';
+            statusBadge.className = 'status-pill status-refusal';
+            statusBadge.textContent = 'ERROR';
         })
         .finally(() => {
             runQueryBtn.disabled = false;
@@ -141,58 +173,58 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderQueryResult(data) {
-        // Status Badge
-        statusBadge.className = 'status-badge';
+        statusBadge.className = 'status-pill';
+
         if (data.status === 'VERIFIED') {
             statusBadge.classList.add('status-verified');
-            statusBadge.textContent = 'DETERMINISTIC VERIFIED';
+            statusBadge.textContent = 'VERIFIED';
             heroMetricValue.textContent = data.numeric_result || 'Verified';
-            heroMetricValue.style.color = 'var(--color-green)';
+            queryStatusNotice.textContent = 'Deterministic calculation matched grounded filing cells';
         } else if (data.status === 'REFUSAL') {
             statusBadge.classList.add('status-refusal');
-            statusBadge.textContent = 'REFUSAL TRIGGERED';
+            statusBadge.textContent = 'REFUSAL GUARD';
             heroMetricValue.textContent = 'REFUSED';
-            heroMetricValue.style.color = 'var(--color-red)';
+            queryStatusNotice.textContent = 'Refused to hallucinate undisclosed or forward-looking metric';
         } else {
             statusBadge.classList.add('status-unverified');
-            statusBadge.textContent = 'UNVERIFIED (HALLUCINATION RISK)';
+            statusBadge.textContent = 'UNVERIFIED';
             heroMetricValue.textContent = data.numeric_result || 'Unverified';
-            heroMetricValue.style.color = 'var(--color-amber)';
+            queryStatusNotice.textContent = 'Heuristic answer without deterministic AST verification';
         }
 
-        // Synthesis & Tags
         synthesisText.textContent = data.answer;
-        tableTitleTag.textContent = data.table_title || 'Table';
-        unitScaleTag.textContent = data.unit_scale || 'USD in millions';
-        retrievedChunkText.textContent = data.retrieved_chunk || 'No context returned.';
+        tableTitleTag.textContent = data.table_title || 'Financial Statement';
+        unitScaleTag.textContent = data.unit_scale || 'In millions USD';
+        retrievedChunkText.textContent = data.retrieved_chunk || 'No context chunk returned.';
 
-        // Math Trace Card
+        // Formula
         if (data.formula) {
             traceFormula.textContent = data.formula;
         } else {
-            traceFormula.textContent = data.status === 'REFUSAL' ? 'N/A (Refusal Guard halted calculation)' : 'N/A (No Formula in Naive mode)';
+            traceFormula.textContent = data.status === 'REFUSAL' ? 'Halted by Calibrated Refusal Guard' : 'None (Ablation mode bypasses AST verifier)';
         }
 
-        // Cited Cells Pills
+        // Cited Cells Tags
         citedCellsList.innerHTML = '';
         if (data.cited_cells && data.cited_cells.length > 0) {
             data.cited_cells.forEach(c => {
-                const pill = document.createElement('span');
-                pill.className = 'cell-pill';
-                pill.textContent = `${c.row} [${c.col}]: ${Number(c.val).toLocaleString()}`;
-                citedCellsList.appendChild(pill);
+                const tag = document.createElement('span');
+                tag.className = 'cell-badge';
+                const formattedVal = Number(c.val).toLocaleString();
+                tag.textContent = `${c.row} (${c.col}): ${formattedVal}`;
+                citedCellsList.appendChild(tag);
             });
         } else {
-            citedCellsList.innerHTML = '<span class="trace-val">None cited</span>';
+            citedCellsList.innerHTML = '<span class="ledger-runtime">No cell coordinates cited</span>';
         }
 
-        // Render Table with Highlights
+        // Table Render with Right-Aligned Financial Columns
         renderTable(data.table_markdown, data.cited_cells || []);
     }
 
     function renderTable(markdown, citedCells) {
         if (!markdown) {
-            tableContainer.innerHTML = '<div class="empty-table-state">No table data available.</div>';
+            tableContainer.innerHTML = '<div class="empty-state">No statement data found.</div>';
             return;
         }
 
@@ -206,7 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
         const headerCols = lines[0].split('|').map(c => c.trim()).filter(c => c.length > 0);
-        
+
         headerCols.forEach(h => {
             const th = document.createElement('th');
             th.textContent = h;
@@ -215,9 +247,9 @@ document.addEventListener('DOMContentLoaded', () => {
         thead.appendChild(headerRow);
         table.appendChild(thead);
 
-        // Parse Body Rows
+        // Parse Data Rows
         const tbody = document.createElement('tbody');
-        const dataLines = lines.slice(2); // Skip header and separator line
+        const dataLines = lines.slice(2);
 
         dataLines.forEach(line => {
             const cols = line.split('|').map(c => c.trim()).filter(c => c.length > 0);
@@ -230,7 +262,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const td = document.createElement('td');
                 td.textContent = colVal;
 
-                // Check if this cell is in cited_cells
                 if (colIdx > 0) {
                     const colHeader = headerCols[colIdx];
                     const isCited = citedCells.some(c => {
@@ -254,19 +285,20 @@ document.addEventListener('DOMContentLoaded', () => {
         tableContainer.appendChild(table);
     }
 
-    // 4. Benchmark Runner
+    // 5. Benchmark Fetcher
     function fetchBenchmark() {
+        if (!runBenchmarkBtn) return;
         runBenchmarkBtn.disabled = true;
-        benchmarkTableBody.innerHTML = '<tr><td colspan="6" class="loading-td">Running 4-way ablation benchmark on 20 FinanceBench cases...</td></tr>';
+        benchmarkTableBody.innerHTML = '<tr><td colspan="6" class="benchmark-loading">Running 4-way ablation benchmark over 20 test cases...</td></tr>';
 
         fetch('/api/benchmark')
             .then(res => res.json())
             .then(data => {
-                renderBenchmarkTable(data.benchmark);
+                renderBenchmarkTable(data.benchmark || []);
             })
             .catch(err => {
                 console.error("Benchmark error:", err);
-                benchmarkTableBody.innerHTML = '<tr><td colspan="6" class="loading-td" style="color:var(--color-red)">Failed to load benchmark.</td></tr>';
+                benchmarkTableBody.innerHTML = '<tr><td colspan="6" class="benchmark-loading" style="color:var(--color-rose)">Failed to execute benchmark harness.</td></tr>';
             })
             .finally(() => {
                 runBenchmarkBtn.disabled = false;
@@ -278,7 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
         results.forEach(r => {
             const tr = document.createElement('tr');
             if (r.name.includes('Ledger')) {
-                tr.classList.add('row-full-ledger');
+                tr.classList.add('row-accent');
             }
 
             tr.innerHTML = `
@@ -293,8 +325,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    runBenchmarkBtn.addEventListener('click', fetchBenchmark);
-
-    // Initial benchmark load
-    fetchBenchmark();
+    if (runBenchmarkBtn) {
+        runBenchmarkBtn.addEventListener('click', fetchBenchmark);
+    }
 });
