@@ -16,6 +16,7 @@ from src.math_verifier import DeterministicMathVerifier
 from src.refusal_guard import CalibratedRefusalGuard
 from src.eval_runner import FinanceBenchEvalRunner
 from src.sec_client import SECClient
+from src.llm_agent import FinancialLLMAgent
 
 app = FastAPI(title="Ledger Financial RAG API", version="0.1.0")
 
@@ -36,6 +37,7 @@ def load_cases() -> Dict[str, Dict[str, Any]]:
 CASES_CACHE = load_cases()
 refusal_guard = CalibratedRefusalGuard()
 sec_client = SECClient()
+llm_agent = FinancialLLMAgent()
 
 class LiveFilingRequest(BaseModel):
     ticker: str = Field(..., description="Stock ticker symbol, e.g. TSLA, NVDA, AAPL")
@@ -53,6 +55,8 @@ def get_health():
         "cached_filings": len(CASES_CACHE),
         "edgar_cache_path": str(sec_client.cache_dir),
         "edgar_cache_files": len(list(sec_client.cache_dir.glob("*"))),
+        "llm_engine": llm_agent.model if llm_agent.is_live_llm_enabled else "ledger-local-engine",
+        "is_live_llm_active": llm_agent.is_live_llm_enabled,
         "version": "0.1.0"
     }
 
@@ -227,14 +231,34 @@ def execute_query(req: QueryRequest):
             "confidence_score": top_score
         }
     elif case.get("is_live_edgar"):
-        # Live SEC EDGAR Grounded Extraction
+        # Live SEC EDGAR Grounded Extraction via Neuro-Symbolic LLM Agent
+        synthesis = llm_agent.synthesize(
+            query=query,
+            retrieved_context=top_chunk,
+            table_title=case.get("table_title", "Financial Statement"),
+            company=case.get("company", case.get("ticker", "Company")),
+            fiscal_year=case.get("fiscal_year", 2024)
+        )
+
+        math_result_str = None
+        if synthesis.formula and req.ablation_mode == "full":
+            try:
+                verified_math = DeterministicMathVerifier.verify_and_compute(
+                    formula=synthesis.formula,
+                    cited_cells=synthesis.cited_cells,
+                    unit=case.get("unit_scale", "USD")
+                )
+                math_result_str = verified_math.formatted_result
+            except Exception:
+                math_result_str = None
+
         return {
-            "status": "VERIFIED",
+            "status": "VERIFIED" if not synthesis.should_refuse else "REFUSAL",
             "query": query,
-            "answer": f"Live SEC EDGAR Grounded Evidence for {case['company']} ({case['ticker']}) FY{case['fiscal_year']}:\n\n{top_chunk[:320]}",
-            "formula": "Audited live via SEC EDGAR Primary 10-K Document",
-            "numeric_result": f"{case['ticker']} Form 10-K",
-            "cited_cells": [],
+            "answer": synthesis.narrative,
+            "formula": synthesis.formula or "Audited live via SEC EDGAR Primary 10-K Document",
+            "numeric_result": math_result_str or f"{case['ticker']} Form 10-K",
+            "cited_cells": synthesis.cited_cells,
             "table_markdown": case["table_markdown"],
             "table_title": case["table_title"],
             "unit_scale": case["unit_scale"],
